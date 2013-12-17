@@ -36,7 +36,7 @@ var
 
 procedure TForm1.FormCreate(Sender: TObject);
 var
-  i,o,u:integer;
+  i,o,u,ilimit,ulimit:integer;
   filehandle:THandle;
 begin
   //p:=Formstructure;
@@ -53,11 +53,11 @@ begin
     fileread(filehandle, o, sizeof(o));  //got field count
 
     i:=0;
-    while (o>(i+1)) do i:=formstructure.incdatalength;
+    while (o>i) do i:=formstructure.incdatalength+1;
 
     for i:=0 to length(formstructure.structure)-1 do
     begin //for every field
-      fileread(filehandle, o, sizeof(o));     //got length
+      fileread(filehandle, o, sizeof(o));
       setlength(formstructure.structure[i].Name, o);
       fileread(filehandle, PChar(formstructure.structure[i].Name)^, o*sizeof(Char)); //got name
 
@@ -68,15 +68,15 @@ begin
         2: FormStructure.Structure[i].DataType:=MyFloat;
         3: FormStructure.Structure[i].DataType:=MyString;
       end; //end of case
-
-      fileread(filehandle, o, sizeof(o)); //filter count
-
+      
+      fileread(filehandle, o, sizeof(integer)); //filter count
+      
       u:=0;
-      while ((u+1)<o) do u:=formstructure.structure[i].incfilterlength;
+      while (u<o) do u:=formstructure.structure[i].incfilterlength+1;
 
       for u:=0 to length(FormStructure.structure[i].Filters)-1 do
       begin
-        fileread(filehandle, o, sizeof(o));
+        fileread(filehandle, o, sizeof(integer));
         case o of
           0: FormStructure.Structure[i].Filters[u].FilterType:=MinLength;
           1: FormStructure.Structure[i].Filters[u].FilterType:=MaxLength;
@@ -86,13 +86,14 @@ begin
           5: FormStructure.Structure[i].Filters[u].FilterType:=IncludeChar;
         end; //end of case
 
-        fileread(filehandle, o, sizeof(o));
+        fileread(filehandle, o, sizeof(integer));
         setlength(FormStructure.structure[i].Filters[u].FilterValue, o);
         fileread(filehandle, PChar(FormStructure.structure[i].Filters[u].FilterValue)^, o*sizeof(char)); //got filter value!
 
       end; //end of for(u)
-
     end; //end of for(i)
+
+
   end; //end of fileexists
 end;
 
@@ -105,7 +106,7 @@ end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
 var
-  i,o,u,p:integer;
+  i,o,u,ilimit,ulimit:integer;
   filehandle:THandle;
 
 begin
@@ -122,7 +123,7 @@ begin
     o:=length(formstructure.structure[i].Name); //name
     filewrite(filehandle, o,sizeof(o));
     filewrite(filehandle, PChar(formstructure.structure[i].name)^, o*sizeof(char));
-
+    {
     case formstructure.structure[i].DataType of
       default:
         begin
@@ -140,13 +141,18 @@ begin
         begin
           o:=3;
         end;
-    end; //end of case
-    filewrite(handle, o, sizeof(o)); //datatype
+      else o:=0;
+    end; //end of case }
 
-    o:=length(formstructure.structure[i].Filters);
-    filewrite(filehandle, o, sizeof(o));   //how many filters
+    o:=integer(formstructure.structure[i].DataType);
+    u:=filewrite(filehandle, o, sizeof(o)); //datatype
+    if u=-1 then showmessage('oops on file write!');
 
-    for u:=0 to length(formstructure.structure[i].Filters)-1 do
+
+    o:=length(formstructure.structure[i].Filters)-1;
+    filewrite(filehandle, o, sizeof(integer));   //how many filters
+
+    for u:=0 to length(formstructure.structure[i].Filters)-1-1 do
     begin
       //formstructure.structure[i].Filters[u].FilterType, value
       case formstructure.structure[i].Filters[u].FilterType of
@@ -156,15 +162,18 @@ begin
         MoreThen: o:=3;
         ExcludeChar: o:=4;
         IncludeChar: o:=5;
+        else o:=0;
       end; //end of case
-      filewrite(filehandle, o, sizeof(o)); //filtertype
+      filewrite(filehandle, o, sizeof(integer)); //filtertype
 
       o:=length(formstructure.structure[i].Filters[u].FilterValue);
-      filewrite(filehandle, o, sizeof(o));
+      filewrite(filehandle, o, sizeof(integer));
       filewrite(filehandle, PChar(formstructure.structure[i].Filters[u].FilterValue)^, o*sizeof(char)); //filtervalue
     end; //end of for(u);
 
-  end; //end of for(i)
+  end; //end of for(i) 
+
+
   fileclose(filehandle);
 
   FormStructure.Free;
